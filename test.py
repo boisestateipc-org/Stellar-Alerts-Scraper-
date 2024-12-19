@@ -2,99 +2,68 @@
 # from pyppeteer import launch
 
 # async def scrape_disconnected_sensors():
+#     # Path to the system's Chrome executable
+#     chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"  # Update for your OS if needed
+
+#     # Launch Chrome instead of Chromium
 #     browser = await launch(
 #         headless=False,
+#         executablePath=chrome_path,
 #         args=['--no-sandbox', '--disable-setuid-sandbox']
 #     )
+
 #     page = await browser.newPage()
 
 #     try:
-#         await page.setViewport({'width': 2100, 'height': 1000})
+#         # Set the viewport size
+#         await page.setViewport({'width': 1366, 'height': 768})
 
-#         # Load Stellar Cyber Login Page
+#         # Set a realistic user-agent
+#         await page.setUserAgent(
+#             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+#         )
+
+#         # Navigate to the login page
 #         await page.goto("https://cyberdome.us/login", waitUntil='networkidle2', timeout=60000)
-#         print("Please log in and navigate to the sensors page. Press Enter here when ready...")
-#         input()  # Wait for user to log in and navigate manually
 
-#         # Debugging: Save the page HTML for inspection
-#         with open('loaded_page.html', 'w', encoding='utf-8') as f:
-#             f.write(await page.content())
+#         # Wait for the username input and type the username
+#         await page.waitForSelector('#mat-input-0', timeout=30000)
+#         await page.type('#mat-input-0', 'your_username', {'delay': 50})  # Replace with your actual username
 
-#         # Scrape all rows with disconnected sensors (marked with `.danger` class)
-#         disconnected_sensors = await page.evaluate('''() => {
-#             const sensors = [];
-#             const dangerIcons = document.querySelectorAll('mat-icon.danger');
-            
-#             dangerIcons.forEach(icon => {
-#                 const row = icon.closest('[role="row"]');  // Locate the parent row of the danger icon
-#                 if (row) {
-#                     const gridCells = row.querySelectorAll('[role="gridcell"]');  // Extract gridcell data
-#                     const hostname = gridCells[0]?.innerText || "Unknown";  // First column (adjust as needed)
-#                     const status = gridCells[1]?.innerText || "Unknown";  // Second column
-#                     const time = gridCells[2]?.innerText || "Unknown";  // Third column
-#                     sensors.push({ hostname, status, time });
-#                 }
-#             });
-#             return sensors;
+#         # Wait for the "Next" button to enable
+#         await page.waitForFunction('document.querySelector("#login-button").disabled === false', timeout=30000)
+
+#         # Click the "Next" button
+#         await page.click('#login-button')
+
+#         # Wait for the password input field
+#         await page.waitForSelector('#password', timeout=30000)
+#         await page.type('#password', 'your_password', {'delay': 50})  # Replace with your actual password
+
+#         # Wait for and click the final login button
+#         await page.waitForSelector('#password-login-button', timeout=300000)
+#         await page.click('#password-login-button')
+
+#         # Wait for navigation to confirm successful login
+#         await page.waitForNavigation(waitUntil='networkidle2', timeout=60000)
+
+#         # Navigate to the target page
+#         await page.goto("https://cyberdome.us/system/collect/sensors", waitUntil='networkidle2', timeout=60000)
+
+#         # Wait for grid cells and scrape data
+#         await page.waitForSelector('[role="gridcell"]', timeout=30000)
+#         grid_data = await page.evaluate('''() => {
+#             let elements = Array.from(document.querySelectorAll('[role="gridcell"]'));
+#             return elements.map(el => el.innerText || el.textContent);
 #         }''')
 
-#         # Debugging: Print the scraped data to the console
-#         print("Disconnected Sensors Data:", disconnected_sensors)
-
-#         # Generate HTML Report
-#         html_content = '''
-#         <html>
-#         <head>
-#             <title>Disconnected Sensors Report</title>
-#             <style>
-#                 table {{
-#                     width: 100%;
-#                     border-collapse: collapse;
-#                 }}
-#                 th, td {{
-#                     border: 1px solid #ddd;
-#                     padding: 8px;
-#                     text-align: left;
-#                 }}
-#                 th {{
-#                     background-color: #f2f2f2;
-#                 }}
-#                 .danger {{
-#                     color: red;
-#                 }}
-#             </style>
-#         </head>
-#         <body>
-#             <h1>Disconnected Sensors</h1>
-#             <table>
-#                 <tr>
-#                     <th>Hostname</th>
-#                     <th>Status</th>
-#                     <th>Time</th>
-#                 </tr>
-#         '''
-#         for sensor in disconnected_sensors:
-#             html_content += f'''
-#                 <tr>
-#                     <td>{sensor["hostname"]}</td>
-#                     <td class="danger">{sensor["status"]}</td>
-#                     <td>{sensor["time"]}</td>
-#                 </tr>
-#             '''
-#         html_content += '''
-#             </table>
-#         </body>
-#         </html>
-#         '''
-
-#         # Save the report as an HTML file
-#         with open("disconnected_sensors_report.html", "w", encoding="utf-8") as f:
-#             f.write(html_content)
-
-#         print("Disconnected Sensors Report generated: disconnected_sensors_report.html")
+#         # Filter disconnected sensors
+#         disconnected_sensors = [text for text in grid_data if "Disconnected" in text]
+#         print("Disconnected Sensors:", disconnected_sensors)
 
 #     except Exception as e:
-#         await page.screenshot({'path': 'error_screenshot.png'})  # Save a screenshot for debugging
+#         # Save error screenshot for debugging
+#         await page.screenshot({'path': 'error_screenshot.png'})
 #         print(f"An error occurred: {e}")
 #     finally:
 #         await browser.close()
@@ -102,151 +71,83 @@
 # if __name__ == "__main__":
 #     asyncio.get_event_loop().run_until_complete(scrape_disconnected_sensors())
 
-
-
 import asyncio
-import smtplib
 from pyppeteer import launch
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-import os
 
 async def scrape_disconnected_sensors():
+    # Path to the system's Chrome executable
+    chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"  # Update for your OS if needed
+
+    # Launch Chrome instead of Chromium
     browser = await launch(
         headless=False,
-        args=['--no-sandbox', '--disable-setuid-sandbox']
+        executablePath=chrome_path,
+        args=['--no-sandbox', '--disable-setuid-sandbox', '--start-maximized']
     )
+
     page = await browser.newPage()
 
     try:
+        # Set the viewport size
         await page.setViewport({'width': 2100, 'height': 1000})
 
-        # Load Stellar Cyber Login Page
-        await page.goto("https://cyberdome.us/login", waitUntil='networkidle2', timeout=60000)
-        print("Please log in and navigate to the sensors page. Press Enter here when ready...")
-        input()  # Wait for user to log in and navigate manually
+        # Set a realistic user-agent
+        await page.setUserAgent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        )
 
-        # Scrape all rows with disconnected sensors (marked with `.danger` class)
-        disconnected_sensors = await page.evaluate('''() => {
-            const sensors = [];
-            const dangerIcons = document.querySelectorAll('mat-icon.danger');
-            
-            dangerIcons.forEach(icon => {
-                const row = icon.closest('[role="row"]');  // Locate the parent row of the danger icon
-                if (row) {
-                    const gridCells = row.querySelectorAll('[role="gridcell"]');  // Extract gridcell data
-                    const hostname = gridCells[0]?.innerText || "Unknown";  // First column
-                    const status = gridCells[1]?.innerText || "Unknown";  // Second column
-                    const time = gridCells[2]?.innerText || "Unknown";  // Third column
-                    sensors.push({ hostname, status, time });
-                }
-            });
-            return sensors;
+        # Navigate to the login page
+        await page.goto("https://cyberdome.us/login", waitUntil='networkidle2', timeout=60000)
+
+        # Wait for the username input and type the username
+        await page.waitForSelector('#mat-input-0', timeout=30000)
+        await page.type('#mat-input-0', 'your_username', {'delay': 50})  # Replace with your actual username
+
+        # Wait for the "Next" button to enable
+        await page.waitForFunction('document.querySelector("#login-button").disabled === false', timeout=30000)
+
+        # Click the "Next" button
+        await page.click('#login-button')
+
+        # Wait for the password input field
+        await page.waitForSelector('#password', timeout=30000)
+        await page.type('#password', 'your_password', {'delay': 50})  # Replace with your actual password
+
+        # Wait for and click the final login button
+        await page.waitForSelector('#password-login-button', timeout=300000)
+        await page.click('#password-login-button')
+
+        # Wait for navigation to confirm successful login
+        await page.waitForNavigation(waitUntil='networkidle2', timeout=60000)
+
+        # Debugging: Save the HTML content after login
+        with open('post_login_page.html', 'w', encoding='utf-8') as f:
+            f.write(await page.content())
+
+        # Manually navigate to the sensors page
+        await page.goto("https://cyberdome.us/system/collect/sensors", waitUntil='networkidle2', timeout=60000)
+
+        # Debugging: Save the sensors page content
+        with open('sensors_page.html', 'w', encoding='utf-8') as f:
+            f.write(await page.content())
+
+        # Wait for grid cells and scrape data
+        await page.waitForSelector('[role="gridcell"]', timeout=30000)
+        grid_data = await page.evaluate('''() => {
+            let elements = Array.from(document.querySelectorAll('[role="gridcell"]'));
+            return elements.map(el => el.innerText || el.textContent);
         }''')
 
-        # Generate HTML Report
-        html_content = '''
-        <html>
-        <head>
-            <title>Disconnected Sensors Report</title>
-            <style>
-                table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                }}
-                th, td {{
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: left;
-                }}
-                th {{
-                    background-color: #f2f2f2;
-                }}
-                .danger {{
-                    color: red;
-                }}
-            </style>
-        </head>
-        <body>
-            <h1>Disconnected Sensors</h1>
-            <table>
-                <tr>
-                    <th>Hostname</th>
-                    <th>Status</th>
-                    <th>Time</th>
-                </tr>
-        '''
-        for sensor in disconnected_sensors:
-            html_content += f'''
-                <tr>
-                    <td>{sensor["hostname"]}</td>
-                    <td class="danger">{sensor["status"]}</td>
-                    <td>{sensor["time"]}</td>
-                </tr>
-            '''
-        html_content += '''
-            </table>
-        </body>
-        </html>
-        '''
-
-        # Save the report as an HTML file
-        report_filename = "disconnected_sensors_report.html"
-        with open(report_filename, "w", encoding="utf-8") as f:
-            f.write(html_content)
-
-        print(f"Disconnected Sensors Report generated: {report_filename}")
-
-        # Send the report via email
-        send_email_report(report_filename)
+        # Filter disconnected sensors
+        disconnected_sensors = [text for text in grid_data if "Disconnected" in text]
+        print("Disconnected Sensors:", disconnected_sensors)
 
     except Exception as e:
-        await page.screenshot({'path': 'error_screenshot.png'})  # Save a screenshot for debugging
+        # Save error screenshot for debugging
+        await page.screenshot({'path': 'error_screenshot.png'})
         print(f"An error occurred: {e}")
     finally:
         await browser.close()
-
-def send_email_report(report_file):
-    # Email settings
-    sender_email = "meganaker@u.boisestate.edu"  
-    receiver_email = "meganaker@boisestate.edu" 
-    password = "Incorrect357141!"  
-
-    # Email content
-    subject = "Disconnected Sensors Report"
-    body = "Attached is the Disconnected Sensors Report."
-
-    # Set up the email
-    message = MIMEMultipart()
-    message['From'] = sender_email
-    message['To'] = receiver_email
-    message['Subject'] = subject
-
-    # Attach the body text
-    message.attach(MIMEText(body, 'plain'))
-
-    # Attach the report file
-    attachment = open(report_file, "rb")
-    part = MIMEBase('application', 'octet-stream')
-    part.set_payload(attachment.read())
-    encoders.encode_base64(part)
-    part.add_header('Content-Disposition', f"attachment; filename= {os.path.basename(report_file)}")
-    message.attach(part)
-    attachment.close()
-
-    try:
-        # Send the email
-        print("Sending email...")
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, password)
-        server.sendmail(sender_email, receiver_email, message.as_string())
-        server.quit()
-        print("Email sent successfully.")
-    except Exception as e:
-        print(f"Failed to send email: {e}")
 
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(scrape_disconnected_sensors())
